@@ -12,6 +12,9 @@ export interface WorkspaceConfig {
   autoSyncDelay: number; // in seconds
   syncOnStartup: boolean;
   cleanupRemoteFiles: boolean;
+  // optional, forward-looking settings
+  conflictStrategy?: 'prompt' | 'local-wins' | 'remote-wins';
+  concurrency?: number;
 }
 
 export interface ClaudeSyncConfig extends GlobalConfig, WorkspaceConfig {}

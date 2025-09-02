@@ -134,6 +134,12 @@ export class ConfigManager {
       autoSyncDelay: config.get('autoSyncInterval') || 30,
       syncOnStartup: config.get('syncOnStartup') || false,
       cleanupRemoteFiles: config.get('cleanupRemoteFiles') || false,
+      conflictStrategy:
+        (config.get('conflictStrategy') as
+          | 'prompt'
+          | 'local-wins'
+          | 'remote-wins') || 'prompt',
+      concurrency: (config.get('concurrency') as number) || 4,
     };
   }
 }

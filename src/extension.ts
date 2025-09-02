@@ -134,6 +134,32 @@ export async function activate(context: vscode.ExtensionContext) {
   };
   await updateSyncManager();
 
+  // Sync (Two-Way)
+  const syncTwoWayCommand = vscode.commands.registerCommand(
+    'claudesync.syncTwoWay',
+    async () => {
+      await vscode.commands.executeCommand('claudesync.syncWorkspace');
+    },
+  );
+
+  // Push (Upload Only) — currently same as workspace sync
+  const syncPushCommand = vscode.commands.registerCommand(
+    'claudesync.syncPush',
+    async () => {
+      await vscode.commands.executeCommand('claudesync.syncWorkspace');
+    },
+  );
+
+  // Pull (Download Only) — placeholder, planned for future PR
+  const syncPullCommand = vscode.commands.registerCommand(
+    'claudesync.syncPull',
+    async () => {
+      vscode.window.showInformationMessage(
+        'ClaudeSync: Pull (download-only) is coming soon in a follow-up update.',
+      );
+    },
+  );
+
   // Command: Open or create CLAUDE.md
   const openClaudeMdCommand = vscode.commands.registerCommand(
     'claudesync.openClaudeMd',
@@ -909,6 +935,9 @@ export async function activate(context: vscode.ExtensionContext) {
     includeInSyncCommand,
     showOutputCommand,
     toggleGitignoreCommand,
+    syncTwoWayCommand,
+    syncPushCommand,
+    syncPullCommand,
     openClaudeMdCommand,
     doctorCommand,
   );

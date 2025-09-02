@@ -51,6 +51,18 @@
         "icon": "resources/project.svg"
       },
       {
+        "command": "claudesync.syncTwoWay",
+        "title": "ClaudeSync: Sync (Two-Way)"
+      },
+      {
+        "command": "claudesync.syncPush",
+        "title": "ClaudeSync: Push (Upload Only)"
+      },
+      {
+        "command": "claudesync.syncPull",
+        "title": "ClaudeSync: Pull (Download Only)"
+      },
+      {
         "command": "claudesync.syncProjectInstructions",
         "title": "ClaudeSync: Sync Project Instructions"
       },
@@ -224,6 +236,19 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically add claudesync.json to .gitignore"
+        },
+        "claudesync.conflictStrategy": {
+          "type": "string",
+          "enum": ["prompt", "local-wins", "remote-wins"],
+          "default": "prompt",
+          "description": "Strategy to use when conflicts are detected (future use)."
+        },
+        "claudesync.concurrency": {
+          "type": "number",
+          "default": 4,
+          "minimum": 1,
+          "maximum": 8,
+          "description": "Parallel upload concurrency (future use)."
         }
       }
     }
