@@ -3,6 +3,7 @@ import { ConfigManager } from './config';
 import { GitManager } from './gitManager';
 import { SyncManager } from './syncManager';
 import type { SyncResult } from './types';
+import { ClaudeProjectsProvider } from './views/projectsView';
 import { ClaudeClient } from './claude/client';
 
 let outputChannel: vscode.OutputChannel;
@@ -22,6 +23,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const configManager = new ConfigManager(outputChannel);
   let syncManager: SyncManager;
   let fileWatcher: vscode.FileSystemWatcher | undefined;
+  let projectsProvider: ClaudeProjectsProvider | undefined;
 
   // function to handle file changes for autosync
   let autoSyncTimer: NodeJS.Timeout | undefined;
@@ -106,6 +108,17 @@ export async function activate(context: vscode.ExtensionContext) {
   const updateSyncManager = async () => {
     const config = await configManager.getConfig();
     syncManager = new SyncManager(config, outputChannel, configManager);
+    // init/update projects view provider
+    if (!projectsProvider) {
+      projectsProvider = new ClaudeProjectsProvider(config);
+      vscode.window.registerTreeDataProvider(
+        'claudesyncProjects',
+        projectsProvider,
+      );
+    } else {
+      projectsProvider.updateConfig(config);
+      projectsProvider.refresh();
+    }
 
     // sync workspace on startup if enabled and project is initialized
     const isInitialized = await syncManager.isProjectInitialized();
@@ -133,6 +146,62 @@ export async function activate(context: vscode.ExtensionContext) {
     await setupFileWatcher();
   };
   await updateSyncManager();
+
+  // Claude Projects View: commands
+  const refreshProjectsCommand = vscode.commands.registerCommand(
+    'claudesync.refreshProjects',
+    () => projectsProvider?.refresh(),
+  );
+
+  const selectOrganizationCommand = vscode.commands.registerCommand(
+    'claudesync.selectOrganization',
+    async (org: { id: string; name: string }) => {
+      await configManager.saveWorkspaceConfig({
+        organizationId: org.id,
+        projectId: undefined,
+      });
+      vscode.window.showInformationMessage(
+        `Active organization set to '${org.name}'. Select a project to continue.`,
+      );
+      await updateSyncManager();
+    },
+  );
+
+  const selectProjectCommand = vscode.commands.registerCommand(
+    'claudesync.selectProject',
+    async (
+      org: { id: string; name: string },
+      project: { id: string; name: string },
+    ) => {
+      await configManager.saveWorkspaceConfig({
+        organizationId: org.id,
+        projectId: project.id,
+      });
+      vscode.window.showInformationMessage(
+        `Active project set to '${project.name}' in '${org.name}'.`,
+      );
+      await updateSyncManager();
+    },
+  );
+
+  const openProjectInBrowserCommand2 = vscode.commands.registerCommand(
+    'claudesync.openProjectInBrowser',
+    async (
+      org?: { id: string; name: string },
+      project?: { id: string; name: string },
+    ) => {
+      const cfg = await configManager.getConfig();
+      const orgId = project && org ? org.id : cfg.organizationId;
+      const projectId = project ? project.id : cfg.projectId;
+      if (!projectId) {
+        vscode.window.showErrorMessage('No active project selected');
+        return;
+      }
+      vscode.env.openExternal(
+        vscode.Uri.parse(`https://claude.ai/project/${projectId}`),
+      );
+    },
+  );
 
   // Sync (Two-Way)
   const syncTwoWayCommand = vscode.commands.registerCommand(
@@ -985,6 +1054,10 @@ export async function activate(context: vscode.ExtensionContext) {
     includeInSyncCommand,
     showOutputCommand,
     toggleGitignoreCommand,
+    refreshProjectsCommand,
+    selectOrganizationCommand,
+    selectProjectCommand,
+    openProjectInBrowserCommand2,
     syncTwoWayCommand,
     syncPushCommand,
     syncPullCommand,

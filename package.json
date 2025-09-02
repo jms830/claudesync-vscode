@@ -111,8 +111,32 @@
       {
         "command": "claudesync.doctor",
         "title": "ClaudeSync: Doctor (Diagnostics)"
+      },
+      {
+        "command": "claudesync.refreshProjects",
+        "title": "ClaudeSync: Refresh Claude Orgs/Projects"
+      },
+      {
+        "command": "claudesync.selectOrganization",
+        "title": "ClaudeSync: Set Active Organization"
+      },
+      {
+        "command": "claudesync.selectProject",
+        "title": "ClaudeSync: Set Active Project"
+      },
+      {
+        "command": "claudesync.openProjectInBrowser",
+        "title": "ClaudeSync: Open Project in Browser"
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "id": "claudesyncProjects",
+          "name": "Claude Projects"
+        }
+      ]
+    },
     "menus": {
       "explorer/context": [
         {
@@ -162,6 +186,28 @@
           "group": "navigation@-2",
           "when": "resourceLangId && resourceFilename != CLAUDE.md",
           "icon": "resources/project.svg"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "claudesync.selectOrganization",
+          "when": "viewItem == claudesync.org",
+          "group": "inline@1"
+        },
+        {
+          "command": "claudesync.selectProject",
+          "when": "viewItem == claudesync.project",
+          "group": "inline@1"
+        },
+        {
+          "command": "claudesync.openProjectInBrowser",
+          "when": "viewItem == claudesync.project",
+          "group": "inline@2"
+        },
+        {
+          "command": "claudesync.refreshProjects",
+          "when": "view == claudesyncProjects",
+          "group": "navigation@9"
         }
       ]
     },
