@@ -98,49 +98,49 @@
         {
           "command": "claudesync.excludeFromSync",
           "group": "claudesync@1",
-          "when": "resourceScheme == file && resourceFilename != .projectinstructions"
+          "when": "resourceScheme == file && resourceFilename != CLAUDE.md"
         },
         {
           "command": "claudesync.includeInSync",
           "group": "claudesync@2",
-          "when": "resourceScheme == file && resourceFilename != .projectinstructions"
+          "when": "resourceScheme == file && resourceFilename != CLAUDE.md"
         }
       ],
       "editor/context": [
         {
           "command": "claudesync.syncProjectInstructions",
           "group": "claudesync@1",
-          "when": "resourceFilename == .projectinstructions"
+          "when": "resourceFilename == CLAUDE.md"
         },
         {
           "command": "claudesync.syncCurrentFile",
           "group": "claudesync",
-          "when": "editorTextFocus && resourceFilename != .projectinstructions"
+          "when": "editorTextFocus && resourceFilename != CLAUDE.md"
         }
       ],
       "editor/title": [
         {
           "command": "claudesync.openInBrowser",
           "group": "navigation@-4",
-          "when": "resourceFilename == .projectinstructions",
+          "when": "resourceFilename == CLAUDE.md",
           "icon": "resources/browser.svg"
         },
         {
           "command": "claudesync.updateProjectInstructions",
           "group": "navigation@-3",
-          "when": "resourceFilename == .projectinstructions",
+          "when": "resourceFilename == CLAUDE.md",
           "icon": "resources/update.svg"
         },
         {
           "command": "claudesync.openInBrowser",
           "group": "navigation@-2",
-          "when": "resourceLangId && resourceFilename != .projectinstructions",
+          "when": "resourceLangId && resourceFilename != CLAUDE.md",
           "icon": "resources/browser.svg"
         },
         {
           "command": "claudesync.syncWorkspace",
           "group": "navigation@-2",
-          "when": "resourceLangId && resourceFilename != .projectinstructions",
+          "when": "resourceLangId && resourceFilename != CLAUDE.md",
           "icon": "resources/project.svg"
         }
       ]
@@ -196,7 +196,7 @@
             "bun.lock",
             "bun.lockb",
             "cargo.lock",
-            ".projectinstructions",
+            "CLAUDE.md",
             ".vscode",
             ".gitignore",
             "*.svg",

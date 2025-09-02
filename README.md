@@ -121,7 +121,7 @@ Customize ClaudeSync through `.vscode/claudesync.json` for workspace settings an
 
 ## Project Instructions
 
-Need to give Claude specific instructions for your project? Create a `.projectinstructions` file in your workspace root. These instructions sync when initializing a new project, or when running "Sync Project Instructions" manually.
+Need to give Claude specific instructions for your project? Create a `CLAUDE.md` file in your workspace root. These instructions sync when initializing a new project, or when running "Sync Project Instructions" manually.
 
 ## Contributing
 

@@ -143,7 +143,7 @@ export class SyncManager {
     try {
       const instructionsUri = vscode.Uri.joinPath(
         workspaceFolder.uri,
-        '.projectinstructions',
+        'CLAUDE.md',
       );
       const instructionsContent =
         await vscode.workspace.fs.readFile(instructionsUri);
@@ -155,7 +155,7 @@ export class SyncManager {
         instructions,
       );
       this.outputChannel.appendLine(
-        'Updated project prompt template from .projectinstructions file',
+        'Updated project prompt template from CLAUDE.md file',
       );
       return {
         success: true,
@@ -163,7 +163,7 @@ export class SyncManager {
       };
     } catch (error) {
       this.outputChannel.appendLine(
-        'No .projectinstructions file found or failed to read it',
+        'No CLAUDE.md file found or failed to read it',
       );
       return { success: true, message: 'No project instructions to update' };
     }
@@ -437,7 +437,7 @@ export class SyncManager {
           }
         : {
             success: false,
-            message: 'No .projectinstructions file found or failed to read it',
+            message: 'No CLAUDE.md file found or failed to read it',
           };
     });
   }
