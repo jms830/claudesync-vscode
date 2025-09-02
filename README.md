@@ -73,6 +73,7 @@ Access these commands through the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+
 | `ClaudeSync: Configure Auto-sync`           | Manage automatic file syncing                 |
 | `ClaudeSync: Configure Startup Sync`        | Control syncing on VS Code startup            |
 | `ClaudeSync: Sync Project Instructions`     | Update project instructions                   |
+| `ClaudeSync: Open CLAUDE.md`                | Open or create `CLAUDE.md` in workspace root  |
 | `ClaudeSync: Open in Browser`               | View project in Claude.ai's Web UI            |
 | `ClaudeSync: Configure Remote File Cleanup` | Configure cleanup of remote files             |
 | `ClaudeSync: Show Current Settings`         | Display current extension settings            |
@@ -81,6 +82,7 @@ Access these commands through the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+
 | `ClaudeSync: Show Output Channel`           | Show the extension's output/logs              |
 | `ClaudeSync: Update Project Instructions`   | Update project instructions in Claude.ai      |
 | `ClaudeSync: Toggle Auto-Add to Gitignore`  | Toggle automatic .gitignore management        |
+| `ClaudeSync: Doctor (Diagnostics)`          | Run diagnostics and show results in Output    |
 
 ## Configuration
 
@@ -121,7 +123,7 @@ Customize ClaudeSync through `.vscode/claudesync.json` for workspace settings an
 
 ## Project Instructions
 
-Need to give Claude specific instructions for your project? Create a `CLAUDE.md` file in your workspace root. These instructions sync when initializing a new project, or when running "Sync Project Instructions" manually.
+Need to give Claude specific instructions for your project? Create a `CLAUDE.md` file in your workspace root. These instructions sync when initializing a new project, or when running "Sync Project Instructions" manually. Use "ClaudeSync: Open CLAUDE.md" to create or open the file quickly.
 
 ## Contributing
 

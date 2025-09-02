@@ -34,6 +34,10 @@
         "title": "ClaudeSync: Set Session Token"
       },
       {
+        "command": "claudesync.openClaudeMd",
+        "title": "ClaudeSync: Open CLAUDE.md"
+      },
+      {
         "command": "claudesync.initProject",
         "title": "ClaudeSync: Initialize Project"
       },
@@ -91,6 +95,10 @@
       {
         "command": "claudesync.toggleGitignore",
         "title": "ClaudeSync: Toggle Auto-Add to Gitignore"
+      },
+      {
+        "command": "claudesync.doctor",
+        "title": "ClaudeSync: Doctor (Diagnostics)"
       }
     ],
     "menus": {

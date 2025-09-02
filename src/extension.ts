@@ -3,11 +3,21 @@ import { ConfigManager } from './config';
 import { GitManager } from './gitManager';
 import { SyncManager } from './syncManager';
 import type { SyncResult } from './types';
+import { ClaudeClient } from './claude/client';
 
 let outputChannel: vscode.OutputChannel;
+let statusBarItem: vscode.StatusBarItem;
 
 export async function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel('ClaudeSync');
+  statusBarItem = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Left,
+    100,
+  );
+  statusBarItem.text = 'ClaudeSync: Setup';
+  statusBarItem.tooltip = 'ClaudeSync status';
+  statusBarItem.command = 'claudesync.showSettings';
+  statusBarItem.show();
 
   const configManager = new ConfigManager(outputChannel);
   let syncManager: SyncManager;
@@ -99,6 +109,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // sync workspace on startup if enabled and project is initialized
     const isInitialized = await syncManager.isProjectInitialized();
+    // update status bar (lightweight)
+    const ready = !!config.sessionToken && isInitialized;
+    statusBarItem.text = ready ? 'ClaudeSync: Ready' : 'ClaudeSync: Setup';
     const vscodeConfig = vscode.workspace.getConfiguration('claudesync');
     const syncOnStartup = vscodeConfig.get('syncOnStartup') as boolean;
 
@@ -120,6 +133,74 @@ export async function activate(context: vscode.ExtensionContext) {
     await setupFileWatcher();
   };
   await updateSyncManager();
+
+  // Command: Open or create CLAUDE.md
+  const openClaudeMdCommand = vscode.commands.registerCommand(
+    'claudesync.openClaudeMd',
+    async () => {
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (!workspaceFolder) {
+        vscode.window.showErrorMessage('No workspace folder found');
+        return;
+      }
+      const uri = vscode.Uri.joinPath(workspaceFolder.uri, 'CLAUDE.md');
+      try {
+        await vscode.workspace.fs.stat(uri);
+      } catch {
+        const content = Buffer.from(
+          '# Project Instructions\n\n- Keep this short, concrete, and current.\n- Describe goals, architecture tips, and key constraints.\n',
+          'utf8',
+        );
+        await vscode.workspace.fs.writeFile(uri, content);
+      }
+      const doc = await vscode.workspace.openTextDocument(uri);
+      await vscode.window.showTextDocument(doc);
+    },
+  );
+
+  // Command: Doctor (diagnostics)
+  const doctorCommand = vscode.commands.registerCommand(
+    'claudesync.doctor',
+    async () => {
+      outputChannel.show(true);
+      outputChannel.appendLine('ClaudeSync Doctor — Diagnostics');
+      const config = await configManager.getConfig();
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+
+      outputChannel.appendLine(`Workspace: ${workspaceFolder?.name ?? 'none'}`);
+      outputChannel.appendLine(
+        `Config file: ${workspaceFolder ? '.vscode/claudesync.json' : 'n/a'}`,
+      );
+      outputChannel.appendLine(
+        `Session token set: ${config.sessionToken ? 'yes' : 'no'}`,
+      );
+
+      // Basic workspace init check
+      const initialized = await syncManager.isProjectInitialized();
+      outputChannel.appendLine(`Initialized: ${initialized ? 'yes' : 'no'}`);
+
+      // Attempt lightweight API check if token present
+      if (config.sessionToken) {
+        try {
+          const client = new ClaudeClient(config);
+          const orgs = await client.getOrganizations();
+          outputChannel.appendLine(
+            `Organizations accessible: ${orgs.length} (token looks valid)`,
+          );
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          outputChannel.appendLine(`API check failed: ${msg}`);
+        }
+      }
+
+      // Exclude patterns preview
+      outputChannel.appendLine(
+        `Exclude patterns: ${config.excludePatterns?.slice(0, 8).join(', ') ?? '(none)'}`,
+      );
+      outputChannel.appendLine(`Max file size: ${config.maxFileSize} bytes`);
+      vscode.window.showInformationMessage('ClaudeSync: Doctor complete — see output panel.');
+    },
+  );
 
   // command to configure autosync
   const configureAutoSyncCommand = vscode.commands.registerCommand(
@@ -828,6 +909,8 @@ export async function activate(context: vscode.ExtensionContext) {
     includeInSyncCommand,
     showOutputCommand,
     toggleGitignoreCommand,
+    openClaudeMdCommand,
+    doctorCommand,
   );
 
   // add file watcher to disposables if it exists
