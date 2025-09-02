@@ -340,6 +340,54 @@ export class SyncManager {
                 continue;
               }
 
+              // Conflict handling (minimal): respect configured strategy
+              const strategy = this.config.conflictStrategy || 'prompt';
+              if (strategy === 'remote-wins') {
+                // Skip overwriting remote
+                skipped++;
+                continue;
+              }
+
+              if (strategy === 'prompt') {
+                // Prompt user per-file
+                const choices = [
+                  { label: 'Overwrite Remote (local-wins)', value: 'local' },
+                  { label: 'Skip (remote-wins)', value: 'remote' },
+                  { label: 'View Remote', value: 'view' },
+                  { label: 'Cancel Sync', value: 'cancel' },
+                ];
+                // Loop until a non-view choice is made
+                // eslint-disable-next-line no-constant-condition
+                while (true) {
+                  const selection = await vscode.window.showQuickPick(
+                    choices.map((c) => c.label),
+                    {
+                      placeHolder: `Conflict: ${file.path} differs from remote`,
+                    },
+                  );
+                  if (!selection || selection === 'Cancel Sync') {
+                    throw new Error('User cancelled sync');
+                  }
+                  if (selection === 'Skip (remote-wins)') {
+                    skipped++;
+                    continue;
+                  }
+                  if (selection === 'View Remote') {
+                    const doc = await vscode.workspace.openTextDocument({
+                      content: existingFile.content,
+                      language: undefined,
+                    });
+                    await vscode.window.showTextDocument(doc, {
+                      preview: true,
+                    });
+                    // re-prompt
+                    continue;
+                  }
+                  // local-wins selected -> proceed to overwrite
+                  break;
+                }
+              }
+
               await this.claudeClient.deleteFile(
                 orgId,
                 projectId,
@@ -419,6 +467,78 @@ export class SyncManager {
         },
       };
     });
+  }
+
+  // Build a dry-run preview plan for given files (non-destructive)
+  public async planFiles(
+    files: vscode.Uri[],
+  ): Promise<
+    | {
+        uploadsNew: string[];
+        uploadsOverwrite: string[];
+        skips: string[];
+        deletesRemote: string[];
+        totalLocal: number;
+        totalRemote: number;
+      }
+    | { error: string }
+  > {
+    const projectResult = await this.ensureProjectAndOrg();
+    if (!projectResult.success) {
+      return { error: projectResult.message ?? 'Project not initialized' };
+    }
+
+    const org = this.currentOrg;
+    const proj = this.currentProject;
+    if (!org || !proj) {
+      return { error: 'Missing organization or project' };
+    }
+
+    const orgId = org.id;
+    const projectId = proj.id;
+
+    const fileContents = await this.prepareFiles(files);
+    const existingFiles = await this.claudeClient.listFiles(orgId, projectId);
+
+    const existingByName = new Map(existingFiles.map((f) => [f.file_name, f]));
+
+    const uploadsNew: string[] = [];
+    const uploadsOverwrite: string[] = [];
+    const skips: string[] = [];
+
+    for (const file of fileContents) {
+      const existing = existingByName.get(file.path);
+      if (!existing) {
+        uploadsNew.push(file.path);
+        continue;
+      }
+      const [remoteHash, localHash] = await Promise.all([
+        computeSHA256Hash(existing.content),
+        computeSHA256Hash(file.content),
+      ]);
+      if (remoteHash === localHash) {
+        skips.push(file.path);
+      } else {
+        uploadsOverwrite.push(file.path);
+      }
+    }
+
+    let deletesRemote: string[] = [];
+    if (this.config.cleanupRemoteFiles) {
+      const localSet = new Set(fileContents.map((f) => f.path));
+      deletesRemote = existingFiles
+        .filter((f) => !localSet.has(f.file_name))
+        .map((f) => f.file_name);
+    }
+
+    return {
+      uploadsNew,
+      uploadsOverwrite,
+      skips,
+      deletesRemote,
+      totalLocal: fileContents.length,
+      totalRemote: existingFiles.length,
+    };
   }
 
   public async syncProjectInstructions(): Promise<SyncResult> {

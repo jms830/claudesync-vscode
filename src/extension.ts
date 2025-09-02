@@ -138,7 +138,57 @@ export async function activate(context: vscode.ExtensionContext) {
   const syncTwoWayCommand = vscode.commands.registerCommand(
     'claudesync.syncTwoWay',
     async () => {
-      await vscode.commands.executeCommand('claudesync.syncWorkspace');
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (!workspaceFolder) {
+        vscode.window.showErrorMessage('No workspace folder found');
+        return;
+      }
+      const action = await vscode.window.showQuickPick(
+        ['Sync now', 'Preview changes'],
+        { placeHolder: 'ClaudeSync: Two-Way Sync' },
+      );
+      if (!action) return;
+      if (action === 'Sync now') {
+        await vscode.commands.executeCommand('claudesync.syncWorkspace');
+        return;
+      }
+      // Preview path
+      try {
+        const files = await vscode.workspace.findFiles('**/*');
+        const plan = await syncManager.planFiles(files);
+        outputChannel.show(true);
+        if ('error' in plan) {
+          outputChannel.appendLine(`Preview failed: ${plan.error}`);
+          vscode.window.showErrorMessage(`Preview failed: ${plan.error}`);
+          return;
+        }
+        outputChannel.appendLine('ClaudeSync — Preview Plan');
+        outputChannel.appendLine(
+          `Local files considered: ${plan.totalLocal}, Remote files: ${plan.totalRemote}`,
+        );
+        outputChannel.appendLine(
+          `Uploads (new): ${plan.uploadsNew.length} — ${plan.uploadsNew.slice(0, 10).join(', ')}`,
+        );
+        outputChannel.appendLine(
+          `Uploads (overwrite): ${plan.uploadsOverwrite.length} — ${plan.uploadsOverwrite
+            .slice(0, 10)
+            .join(', ')}`,
+        );
+        outputChannel.appendLine(
+          `Skips (identical): ${plan.skips.length} — ${plan.skips.slice(0, 10).join(', ')}`,
+        );
+        outputChannel.appendLine(
+          `Remote deletes: ${plan.deletesRemote.length} — ${plan.deletesRemote
+            .slice(0, 10)
+            .join(', ')}`,
+        );
+        vscode.window.showInformationMessage(
+          'Preview complete — see ClaudeSync output for details.',
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        vscode.window.showErrorMessage(`Preview failed: ${msg}`);
+      }
     },
   );
 
