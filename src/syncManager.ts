@@ -312,79 +312,66 @@ export class SyncManager {
           const total = fileContents.length;
           let current = 0;
 
-          // First, sync all local files
-          for (const file of fileContents) {
+          // First, sync all local files (with limited concurrency)
+          const strategy = this.config.conflictStrategy || 'prompt';
+          const maxConcurrency = Math.max(
+            1,
+            Math.min(this.config.concurrency || 4, strategy === 'prompt' ? 1 : 8),
+          );
+
+          const existingByName = new Map(
+            existingFiles.map((f) => [f.file_name, f]),
+          );
+
+          const processOne = async (file: FileContent) => {
             if (token.isCancellationRequested) {
-              this.outputChannel.appendLine('Upload cancelled by user');
               return;
             }
-
-            progress.report({
-              message: `${++current}/${total}: ${file.path}`,
-              increment: (1 / total) * 100,
-            });
-
             this.outputChannel.appendLine(`Processing file: ${file.path}`);
-            const existingFile = existingFiles.find(
-              (f) => f.file_name === file.path,
-            );
-
+            const existingFile = existingByName.get(file.path);
             if (existingFile) {
               const [remoteHash, localHash] = await Promise.all([
                 computeSHA256Hash(existingFile.content),
                 computeSHA256Hash(file.content),
               ]);
-
               if (remoteHash === localHash) {
                 skipped++;
-                continue;
+                return;
               }
 
-              // Conflict handling (minimal): respect configured strategy
-              const strategy = this.config.conflictStrategy || 'prompt';
               if (strategy === 'remote-wins') {
-                // Skip overwriting remote
                 skipped++;
-                continue;
+                return;
               }
 
               if (strategy === 'prompt') {
-                // Prompt user per-file
                 const choices = [
-                  { label: 'Overwrite Remote (local-wins)', value: 'local' },
-                  { label: 'Skip (remote-wins)', value: 'remote' },
-                  { label: 'View Remote', value: 'view' },
-                  { label: 'Cancel Sync', value: 'cancel' },
+                  'Overwrite Remote (local-wins)',
+                  'Skip (remote-wins)',
+                  'View Remote',
+                  'Cancel Sync',
                 ];
-                // Loop until a non-view choice is made
                 // eslint-disable-next-line no-constant-condition
                 while (true) {
-                  const selection = await vscode.window.showQuickPick(
-                    choices.map((c) => c.label),
-                    {
-                      placeHolder: `Conflict: ${file.path} differs from remote`,
-                    },
-                  );
+                  const selection = await vscode.window.showQuickPick(choices, {
+                    placeHolder: `Conflict: ${file.path} differs from remote`,
+                  });
                   if (!selection || selection === 'Cancel Sync') {
                     throw new Error('User cancelled sync');
                   }
                   if (selection === 'Skip (remote-wins)') {
                     skipped++;
-                    continue;
+                    return;
                   }
                   if (selection === 'View Remote') {
                     const doc = await vscode.workspace.openTextDocument({
                       content: existingFile.content,
                       language: undefined,
                     });
-                    await vscode.window.showTextDocument(doc, {
-                      preview: true,
-                    });
-                    // re-prompt
-                    continue;
+                    await vscode.window.showTextDocument(doc, { preview: true });
+                    continue; // re-prompt
                   }
-                  // local-wins selected -> proceed to overwrite
-                  break;
+                  break; // overwrite
                 }
               }
 
@@ -394,7 +381,6 @@ export class SyncManager {
                 existingFile.uuid,
               );
             }
-
             await this.claudeClient.uploadFile(
               orgId,
               projectId,
@@ -402,7 +388,26 @@ export class SyncManager {
               file.content,
             );
             synced++;
-          }
+          };
+
+          let idx = 0;
+          const runNext = async () => {
+            while (true) {
+              if (token.isCancellationRequested) return;
+              const i = idx++;
+              if (i >= fileContents.length) return;
+              const file = fileContents[i];
+              await processOne(file);
+              current++;
+              progress.report({
+                message: `${current}/${total}: ${file.path}`,
+                increment: (1 / total) * 100,
+              });
+            }
+          };
+
+          const workers = Array.from({ length: maxConcurrency }, () => runNext());
+          await Promise.all(workers);
 
           // Then, if cleanupRemoteFiles is enabled, remove any remote files that don't exist locally
           if (

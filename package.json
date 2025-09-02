@@ -113,6 +113,10 @@
         "title": "ClaudeSync: Doctor (Diagnostics)"
       },
       {
+        "command": "claudesync.discoverProjects",
+        "title": "ClaudeSync: Discover Projects in Workspace"
+      },
+      {
         "command": "claudesync.refreshProjects",
         "title": "ClaudeSync: Refresh Claude Orgs/Projects"
       },

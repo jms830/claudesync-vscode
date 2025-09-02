@@ -203,6 +203,35 @@ export async function activate(context: vscode.ExtensionContext) {
     },
   );
 
+  // Discover Projects: find subfolders containing .vscode/claudesync.json
+  const discoverProjectsCommand = vscode.commands.registerCommand(
+    'claudesync.discoverProjects',
+    async () => {
+      const ws = vscode.workspace.workspaceFolders?.[0];
+      if (!ws) {
+        vscode.window.showErrorMessage('No workspace folder found');
+        return;
+      }
+      outputChannel.show(true);
+      outputChannel.appendLine('Discovering Claude projects in workspace...');
+      const matches = await vscode.workspace.findFiles('**/.vscode/claudesync.json');
+      if (matches.length === 0) {
+        vscode.window.showInformationMessage('No Claude projects found.');
+        return;
+      }
+      const items = matches.map((u) => {
+        const folder = vscode.Uri.joinPath(u, '..').path;
+        const rel = vscode.workspace.asRelativePath(folder);
+        return { label: rel, uri: vscode.Uri.joinPath(u, '..', '..') };
+      });
+      const picked = await vscode.window.showQuickPick(items, {
+        placeHolder: 'Open a discovered project in a new window',
+      });
+      if (!picked) return;
+      await vscode.commands.executeCommand('vscode.openFolder', picked.uri, true);
+    },
+  );
+
   // Sync (Two-Way)
   const syncTwoWayCommand = vscode.commands.registerCommand(
     'claudesync.syncTwoWay',
@@ -1058,6 +1087,7 @@ export async function activate(context: vscode.ExtensionContext) {
     selectOrganizationCommand,
     selectProjectCommand,
     openProjectInBrowserCommand2,
+    discoverProjectsCommand,
     syncTwoWayCommand,
     syncPushCommand,
     syncPullCommand,
