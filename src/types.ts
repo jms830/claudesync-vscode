@@ -32,5 +32,8 @@ export interface SyncResult {
   error?: Error;
   data?: {
     syncedFiles: number;
+    created?: number;
+    overwritten?: number;
+    skipped?: number;
   };
 }

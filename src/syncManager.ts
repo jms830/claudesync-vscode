@@ -219,7 +219,7 @@ export class SyncManager {
     return {
       success: true,
       message: `Pulled ${created} created, ${overwritten} overwritten, ${skipped} skipped`,
-      data: { syncedFiles: created + overwritten },
+      data: { syncedFiles: created + overwritten, created, overwritten, skipped },
     };
   }
   public async isProjectInitialized(): Promise<boolean> {

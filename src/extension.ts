@@ -17,7 +17,7 @@ export async function activate(context: vscode.ExtensionContext) {
   );
   statusBarItem.text = 'ClaudeSync: Setup';
   statusBarItem.tooltip = 'ClaudeSync status';
-  statusBarItem.command = 'claudesync.showSettings';
+  statusBarItem.command = 'claudesync.statusBarMenu';
   statusBarItem.show();
 
   const configManager = new ConfigManager(outputChannel);
@@ -125,6 +125,9 @@ export async function activate(context: vscode.ExtensionContext) {
     // update status bar (lightweight)
     const ready = !!config.sessionToken && isInitialized;
     statusBarItem.text = ready ? 'ClaudeSync: Ready' : 'ClaudeSync: Setup';
+    statusBarItem.tooltip = ready
+      ? 'ClaudeSync is ready. Click for quick actions.'
+      : 'ClaudeSync needs setup. Click for quick actions.';
     const vscodeConfig = vscode.workspace.getConfiguration('claudesync');
     const syncOnStartup = vscodeConfig.get('syncOnStartup') as boolean;
 
@@ -643,11 +646,18 @@ export async function activate(context: vscode.ExtensionContext) {
       const result = await syncManager.pullRemoteToLocal();
       if (result.success) {
         vscode.window.showInformationMessage(result.message || 'Pull complete');
+        const total = result.data?.syncedFiles || 0;
+        const created = result.data?.created || 0;
+        const overwritten = result.data?.overwritten || 0;
+        statusBarItem.text = `ClaudeSync: ↓ ${total}`;
+        statusBarItem.tooltip = `Pulled — created ${created}, overwritten ${overwritten}`;
       } else {
         const errorMsg = result.error
           ? `${result.message || 'Error'}: ${result.error.message}`
           : result.message || 'Unknown error';
         vscode.window.showErrorMessage(errorMsg);
+        statusBarItem.text = 'ClaudeSync: ✖';
+        statusBarItem.tooltip = `Last error: ${errorMsg}`;
       }
     },
   );
@@ -717,6 +727,50 @@ export async function activate(context: vscode.ExtensionContext) {
       );
       outputChannel.appendLine(`Max file size: ${config.maxFileSize} bytes`);
       vscode.window.showInformationMessage('ClaudeSync: Doctor complete — see output panel.');
+    },
+  );
+
+  // Status bar Quick Actions menu
+  const statusBarMenuCommand = vscode.commands.registerCommand(
+    'claudesync.statusBarMenu',
+    async () => {
+      const pick = await vscode.window.showQuickPick(
+        [
+          'Sync (Two-Way)',
+          'Push (Upload Only)',
+          'Pull (Download Only)',
+          'Open CLAUDE.md',
+          'Open Project in Browser',
+          'Doctor (Diagnostics)',
+          'Show Output',
+        ],
+        { placeHolder: 'ClaudeSync: Quick Actions' },
+      );
+      switch (pick) {
+        case 'Sync (Two-Way)':
+          await vscode.commands.executeCommand('claudesync.syncTwoWay');
+          break;
+        case 'Push (Upload Only)':
+          await vscode.commands.executeCommand('claudesync.syncPush');
+          break;
+        case 'Pull (Download Only)':
+          await vscode.commands.executeCommand('claudesync.syncPull');
+          break;
+        case 'Open CLAUDE.md':
+          await vscode.commands.executeCommand('claudesync.openClaudeMd');
+          break;
+        case 'Open Project in Browser':
+          await vscode.commands.executeCommand('claudesync.openInBrowser');
+          break;
+        case 'Doctor (Diagnostics)':
+          await vscode.commands.executeCommand('claudesync.doctor');
+          break;
+        case 'Show Output':
+          await vscode.commands.executeCommand('claudesync.showOutput');
+          break;
+        default:
+          break;
+      }
     },
   );
 
@@ -945,15 +999,21 @@ export async function activate(context: vscode.ExtensionContext) {
             vscode.window.showInformationMessage(
               'No files needed syncing - all files were up to date.',
             );
+            statusBarItem.text = 'ClaudeSync: ✔ 0';
+            statusBarItem.tooltip = 'No changes — up to date';
           } else {
             vscode.window.showInformationMessage(
               `Successfully synced ${syncedFiles} file${syncedFiles === 1 ? '' : 's'} with Claude!`,
             );
+            statusBarItem.text = `ClaudeSync: ✔ ${syncedFiles}`;
+            statusBarItem.tooltip = `Last sync: ${syncedFiles} files updated`;
           }
         } else {
           vscode.window.showErrorMessage(
             'Failed to sync files, is your Claude session token correct?',
           );
+          statusBarItem.text = 'ClaudeSync: ✖';
+          statusBarItem.tooltip = 'Last sync failed';
         }
       },
     );
@@ -1085,6 +1145,8 @@ export async function activate(context: vscode.ExtensionContext) {
       } catch (error) {
         const errorMsg = `Failed to sync workspace: ${error instanceof Error ? error.message : String(error)}`;
         vscode.window.showErrorMessage(errorMsg);
+        statusBarItem.text = 'ClaudeSync: ✖';
+        statusBarItem.tooltip = `Last error: ${errorMsg}`;
       }
     },
   );
@@ -1440,6 +1502,7 @@ export async function activate(context: vscode.ExtensionContext) {
     syncPullCommand,
     openClaudeMdCommand,
     doctorCommand,
+    statusBarMenuCommand,
   );
 
   // add file watcher to disposables if it exists

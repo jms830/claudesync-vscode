@@ -143,6 +143,10 @@
       {
         "command": "claudesync.cloneProject",
         "title": "ClaudeSync: Clone Remote Project"
+      },
+      {
+        "command": "claudesync.statusBarMenu",
+        "title": "ClaudeSync: Quick Actions"
       }
     ],
     "views": {
