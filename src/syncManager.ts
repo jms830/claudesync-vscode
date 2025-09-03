@@ -46,11 +46,43 @@ export class SyncManager {
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) return { error: 'No workspace folder found' };
-
     const org = this.currentOrg!;
     const proj = this.currentProject!;
-    const remoteFiles = await this.claudeClient.listFiles(org.id, proj.id);
+    return this.planPullAtFor(org.id, proj.id, workspaceFolder.uri);
+  }
 
+  public async pullRemoteToLocal(): Promise<SyncResult> {
+    return this.handleError('pull (download only)', async () => {
+      const projectResult = await this.ensureProjectAndOrg();
+      if (!projectResult.success) return projectResult;
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (!workspaceFolder) {
+        return { success: false, message: 'No workspace folder found' };
+      }
+      const org = this.currentOrg!;
+      const proj = this.currentProject!;
+      return this.pullRemoteToAtFor(org.id, proj.id, workspaceFolder.uri);
+    });
+  }
+
+  // Generic helpers for pulling to any base folder with explicit org/project
+  public async planPullAtFor(
+    organizationId: string,
+    projectId: string,
+    baseUri: vscode.Uri,
+  ): Promise<
+    | {
+        createLocal: string[];
+        overwriteLocal: string[];
+        skipLocal: string[];
+        totalRemote: number;
+      }
+    | { error: string }
+  > {
+    const remoteFiles = await this.claudeClient.listFiles(
+      organizationId,
+      projectId,
+    );
     const createLocal: string[] = [];
     const overwriteLocal: string[] = [];
     const skipLocal: string[] = [];
@@ -58,7 +90,7 @@ export class SyncManager {
     for (const rf of remoteFiles) {
       const rel = rf.file_name;
       if (this.shouldExclude(rel)) continue;
-      const uri = vscode.Uri.joinPath(workspaceFolder.uri, rel);
+      const uri = vscode.Uri.joinPath(baseUri, rel);
       try {
         const buf = await vscode.workspace.fs.readFile(uri);
         const local = new TextDecoder().decode(buf);
@@ -75,7 +107,6 @@ export class SyncManager {
         createLocal.push(rel);
       }
     }
-
     return {
       createLocal,
       overwriteLocal,
@@ -84,118 +115,112 @@ export class SyncManager {
     };
   }
 
-  public async pullRemoteToLocal(): Promise<SyncResult> {
-    return this.handleError('pull (download only)', async () => {
-      const projectResult = await this.ensureProjectAndOrg();
-      if (!projectResult.success) return projectResult;
+  public async pullRemoteToAtFor(
+    organizationId: string,
+    projectId: string,
+    baseUri: vscode.Uri,
+  ): Promise<SyncResult> {
+    let created = 0;
+    let overwritten = 0;
+    let skipped = 0;
+    const remoteFiles = await this.claudeClient.listFiles(
+      organizationId,
+      projectId,
+    );
 
-      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-      if (!workspaceFolder) {
-        return { success: false, message: 'No workspace folder found' };
-      }
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Pulling from Claude',
+        cancellable: true,
+      },
+      async (progress, token) => {
+        const total = remoteFiles.length;
+        let current = 0;
+        const strategy = this.config.conflictStrategy || 'prompt';
 
-      const org = this.currentOrg!;
-      const proj = this.currentProject!;
-      const remoteFiles = await this.claudeClient.listFiles(org.id, proj.id);
+        for (const rf of remoteFiles) {
+          if (token.isCancellationRequested) return;
+          const rel = rf.file_name;
+          if (this.shouldExclude(rel)) continue;
 
-      let created = 0;
-      let overwritten = 0;
-      let skipped = 0;
+          const message = `${++current}/${total}: ${rel}`;
+          progress.report({ message, increment: (1 / total) * 100 });
 
-      await vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: 'Pulling from Claude',
-          cancellable: true,
-        },
-        async (progress, token) => {
-          const total = remoteFiles.length;
-          let current = 0;
-          const strategy = this.config.conflictStrategy || 'prompt';
-
-          for (const rf of remoteFiles) {
-            if (token.isCancellationRequested) return;
-            const rel = rf.file_name;
-            if (this.shouldExclude(rel)) continue;
-
-            const message = `${++current}/${total}: ${rel}`;
-            progress.report({ message, increment: (1 / total) * 100 });
-
-            const uri = vscode.Uri.joinPath(workspaceFolder.uri, rel);
-            // ensure directory exists
-            const relParts = rel.split('/');
-            if (relParts.length > 1) {
-              const dir = relParts.slice(0, -1).join('/');
-              try {
-                await vscode.workspace.fs.createDirectory(
-                  vscode.Uri.joinPath(workspaceFolder.uri, dir),
-                );
-              } catch {}
-            }
-
-            let exists = true;
-            let overwrite = false;
+          const uri = vscode.Uri.joinPath(baseUri, rel);
+          // ensure directory exists
+          const relParts = rel.split('/');
+          if (relParts.length > 1) {
+            const dir = relParts.slice(0, -1).join('/');
             try {
-              const buf = await vscode.workspace.fs.readFile(uri);
-              const local = new TextDecoder().decode(buf);
-              const [h1, h2] = await Promise.all([
-                computeSHA256Hash(local),
-                computeSHA256Hash(rf.content),
-              ]);
-              if (h1 !== h2) {
-                if (strategy === 'remote-wins') {
-                  overwrite = true;
-                } else if (strategy === 'local-wins') {
-                  skipped++;
-                  continue;
-                } else {
-                  const pick = await vscode.window.showQuickPick(
-                    [
-                      'Overwrite Local (remote-wins)',
-                      'Skip (local-wins)',
-                      'View Local',
-                      'Cancel Pull',
-                    ],
-                    { placeHolder: `Conflict: ${rel}` },
-                  );
-                  if (!pick || pick === 'Cancel Pull') {
-                    throw new Error('User cancelled pull');
-                  }
-                  if (pick === 'Skip (local-wins)') {
-                    skipped++;
-                    continue;
-                  }
-                  if (pick === 'View Local') {
-                    const doc = await vscode.workspace.openTextDocument(uri);
-                    await vscode.window.showTextDocument(doc, { preview: true });
-                    // re-prompt on next loop iteration
-                    current--; // do not advance progress line for re-prompt
-                    continue;
-                  }
-                  overwrite = true;
-                }
-              } else {
+              await vscode.workspace.fs.createDirectory(
+                vscode.Uri.joinPath(baseUri, dir),
+              );
+            } catch {}
+          }
+
+          let exists = true;
+          let overwrite = false;
+          try {
+            const buf = await vscode.workspace.fs.readFile(uri);
+            const local = new TextDecoder().decode(buf);
+            const [h1, h2] = await Promise.all([
+              computeSHA256Hash(local),
+              computeSHA256Hash(rf.content),
+            ]);
+            if (h1 !== h2) {
+              if (strategy === 'remote-wins') {
+                overwrite = true;
+              } else if (strategy === 'local-wins') {
                 skipped++;
                 continue;
+              } else {
+                const pick = await vscode.window.showQuickPick(
+                  [
+                    'Overwrite Local (remote-wins)',
+                    'Skip (local-wins)',
+                    'View Local',
+                    'Cancel Pull',
+                  ],
+                  { placeHolder: `Conflict: ${rel}` },
+                );
+                if (!pick || pick === 'Cancel Pull') {
+                  throw new Error('User cancelled pull');
+                }
+                if (pick === 'Skip (local-wins)') {
+                  skipped++;
+                  continue;
+                }
+                if (pick === 'View Local') {
+                  const doc = await vscode.workspace.openTextDocument(uri);
+                  await vscode.window.showTextDocument(doc, { preview: true });
+                  // re-prompt on next loop iteration
+                  current--; // do not advance progress line for re-prompt
+                  continue;
+                }
+                overwrite = true;
               }
-            } catch {
-              exists = false;
+            } else {
+              skipped++;
+              continue;
             }
-
-            const content = Buffer.from(rf.content, 'utf8');
-            await vscode.workspace.fs.writeFile(uri, content);
-            if (exists && overwrite) overwritten++;
-            else if (!exists) created++;
+          } catch {
+            exists = false;
           }
-        },
-      );
 
-      return {
-        success: true,
-        message: `Pulled ${created} created, ${overwritten} overwritten, ${skipped} skipped`,
-        data: { syncedFiles: created + overwritten },
-      };
-    });
+          const content = Buffer.from(rf.content, 'utf8');
+          await vscode.workspace.fs.writeFile(uri, content);
+          if (exists && overwrite) overwritten++;
+          else if (!exists) created++;
+        }
+      },
+    );
+
+    return {
+      success: true,
+      message: `Pulled ${created} created, ${overwritten} overwritten, ${skipped} skipped`,
+      data: { syncedFiles: created + overwritten },
+    };
   }
   public async isProjectInitialized(): Promise<boolean> {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];

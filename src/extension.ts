@@ -445,13 +445,61 @@ export async function activate(context: vscode.ExtensionContext) {
         Buffer.from(JSON.stringify(minimal, null, 2), 'utf8'),
       );
 
-      const open = await vscode.window.showInformationMessage(
-        `Project '${project.name}' is ready at ${target.fsPath}. Open and pull now?`,
-        'Open Folder',
-        'Later',
+      const next = await vscode.window.showQuickPick(
+        ['Clone now (download files)', 'Open Folder Only', 'Cancel'],
+        { placeHolder: `Project '${project.name}' prepared at ${target.fsPath}` },
       );
-      if (open === 'Open Folder') {
+      if (!next || next === 'Cancel') return;
+      if (next === 'Open Folder Only') {
         await vscode.commands.executeCommand('vscode.openFolder', target, true);
+        return;
+      }
+
+      // Perform pull into target folder with preview and confirmation
+      const preview = await syncManager.planPullAtFor(org.id, project.id, target);
+      if ('error' in preview) {
+        vscode.window.showErrorMessage(`Clone preview failed: ${preview.error}`);
+        return;
+      }
+      outputChannel.show(true);
+      outputChannel.appendLine('ClaudeSync — Clone Preview');
+      outputChannel.appendLine(`Remote files: ${preview.totalRemote}`);
+      outputChannel.appendLine(
+        `Create local: ${preview.createLocal.length} — ${preview.createLocal
+          .slice(0, 10)
+          .join(', ')}`,
+      );
+      outputChannel.appendLine(
+        `Overwrite local: ${preview.overwriteLocal.length} — ${preview.overwriteLocal
+          .slice(0, 10)
+          .join(', ')}`,
+      );
+      outputChannel.appendLine(
+        `Skip (identical): ${preview.skipLocal.length} — ${preview.skipLocal
+          .slice(0, 10)
+          .join(', ')}`,
+      );
+      const confirm = await vscode.window.showQuickPick(
+        ['Proceed with Clone', 'Cancel'],
+        { placeHolder: 'Confirm cloning remote files into the destination folder' },
+      );
+      if (confirm !== 'Proceed with Clone') return;
+
+      const res = await syncManager.pullRemoteToAtFor(org.id, project.id, target);
+      if (res.success) {
+        const open = await vscode.window.showInformationMessage(
+          res.message || 'Clone complete',
+          'Open Folder',
+          'Stay',
+        );
+        if (open === 'Open Folder') {
+          await vscode.commands.executeCommand('vscode.openFolder', target, true);
+        }
+      } else {
+        const errorMsg = res.error
+          ? `${res.message || 'Error'}: ${res.error.message}`
+          : res.message || 'Unknown error';
+        vscode.window.showErrorMessage(errorMsg);
       }
     },
   );
