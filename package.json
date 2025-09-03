@@ -316,6 +316,12 @@
           "minimum": 1,
           "maximum": 8,
           "description": "Parallel upload concurrency (future use)."
+        },
+        "claudesync.cloneDefaultAction": {
+          "type": "string",
+          "enum": ["prompt", "preview", "open-only"],
+          "default": "prompt",
+          "description": "Default behavior for Clone: prompt, preview (auto-run preview + confirm), or open-only (just prepare and open folder)."
         }
       }
     }

@@ -74,7 +74,7 @@ Access these commands through the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+
 | `ClaudeSync: Push (Upload Only)`           | Upload-only sync (same as current behavior)   |
 | `ClaudeSync: Pull (Download Only)`         | Download remote files to local (preview first) |
 | `ClaudeSync: Sync Workspace To Multiple Projects` | Sync current workspace to selected Claude projects |
-| `ClaudeSync: Clone Remote Project`      | Create a folder with config; open and then Pull |
+| `ClaudeSync: Clone Remote Project`      | Prepare folder + config; preview and pull with conflicts |
 | `ClaudeSync: Configure Auto-sync`           | Manage automatic file syncing                 |
 | `ClaudeSync: Configure Startup Sync`        | Control syncing on VS Code startup            |
 | `ClaudeSync: Sync Project Instructions`     | Update project instructions                   |
@@ -162,3 +162,6 @@ ClaudeSync is open source software licensed under the MIT License. See the [LICE
 
 > [!WARNING]
 > This extension is not officially affiliated with Anthropic's Claude.ai service.
+Notes
+- Clone default behavior is configurable via `claudesync.cloneDefaultAction` (prompt | preview | open-only).
+- Clone warns if the destination folder is non-empty before proceeding.

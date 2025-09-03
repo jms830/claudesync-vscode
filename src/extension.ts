@@ -423,6 +423,21 @@ export async function activate(context: vscode.ExtensionContext) {
         await vscode.workspace.fs.createDirectory(target);
       } catch {}
 
+      // Warn if destination (target) is non-empty
+      try {
+        const entries = await vscode.workspace.fs.readDirectory(target);
+        const nonEmpty = entries.filter(([name]) => name !== '.' && name !== '..').length > 0;
+        if (nonEmpty) {
+          const proceed = await vscode.window.showWarningMessage(
+            `Destination folder '${folderName}' is not empty. Proceed may overwrite files depending on conflict strategy.`,
+            { modal: true },
+            'Proceed',
+            'Cancel',
+          );
+          if (proceed !== 'Proceed') return;
+        }
+      } catch {}
+
       // Write minimal .vscode/claudesync.json with current defaults
       const vsUri = vscode.Uri.joinPath(target, '.vscode');
       try {
@@ -445,10 +460,21 @@ export async function activate(context: vscode.ExtensionContext) {
         Buffer.from(JSON.stringify(minimal, null, 2), 'utf8'),
       );
 
-      const next = await vscode.window.showQuickPick(
-        ['Clone now (download files)', 'Open Folder Only', 'Cancel'],
-        { placeHolder: `Project '${project.name}' prepared at ${target.fsPath}` },
-      );
+      // Determine default behavior
+      const cloneDefault = vscode.workspace
+        .getConfiguration('claudesync')
+        .get<string>('cloneDefaultAction', 'prompt');
+      let next: string | undefined;
+      if (cloneDefault === 'preview') {
+        next = 'Clone now (download files)';
+      } else if (cloneDefault === 'open-only') {
+        next = 'Open Folder Only';
+      } else {
+        next = await vscode.window.showQuickPick(
+          ['Clone now (download files)', 'Open Folder Only', 'Cancel'],
+          { placeHolder: `Project '${project.name}' prepared at ${target.fsPath}` },
+        );
+      }
       if (!next || next === 'Cancel') return;
       if (next === 'Open Folder Only') {
         await vscode.commands.executeCommand('vscode.openFolder', target, true);
