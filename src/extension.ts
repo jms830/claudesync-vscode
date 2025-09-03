@@ -352,6 +352,110 @@ export async function activate(context: vscode.ExtensionContext) {
     },
   );
 
+  // Clone Remote Project: prepare folder with config and open
+  const cloneProjectCommand = vscode.commands.registerCommand(
+    'claudesync.cloneProject',
+    async () => {
+      const cfg = await configManager.getConfig();
+      if (!cfg.sessionToken) {
+        const setToken = await vscode.window.showErrorMessage(
+          'Please set your Claude session token first',
+          'Set Token',
+        );
+        if (setToken) await vscode.commands.executeCommand('claudesync.setToken');
+        return;
+      }
+
+      const client = new ClaudeClient(cfg);
+      let orgs: { id: string; name: string }[] = [];
+      try {
+        orgs = await client.getOrganizations();
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        vscode.window.showErrorMessage(`Failed to load organizations: ${msg}`);
+        return;
+      }
+      if (orgs.length === 0) {
+        vscode.window.showErrorMessage('No organizations available.');
+        return;
+      }
+
+      const orgPick = await vscode.window.showQuickPick(
+        orgs.map((o) => ({ label: o.name, description: o.id, org: o })),
+        { placeHolder: 'Select an organization', canPickMany: false },
+      );
+      if (!orgPick) return;
+      const org = orgPick.org;
+
+      let projects: { id: string; name: string }[] = [];
+      try {
+        projects = await client.getProjects(org.id);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        vscode.window.showErrorMessage(`Failed to load projects: ${msg}`);
+        return;
+      }
+      if (projects.length === 0) {
+        vscode.window.showInformationMessage('No projects found in this organization.');
+        return;
+      }
+
+      const projectPick = await vscode.window.showQuickPick(
+        projects.map((p) => ({ label: p.name, description: p.id, project: p })),
+        { placeHolder: 'Select a project to clone', canPickMany: false },
+      );
+      if (!projectPick) return;
+      const project = projectPick.project;
+
+      const dest = await vscode.window.showOpenDialog({
+        canSelectFolders: true,
+        canSelectFiles: false,
+        canSelectMany: false,
+        openLabel: 'Select destination folder',
+      });
+      if (!dest || dest.length === 0) return;
+      const base = dest[0];
+
+      const sanitize = (name: string) => name.replace(/[\\\/:*?"<>|]/g, '-').trim() || 'claude-project';
+      const folderName = sanitize(project.name);
+      const target = vscode.Uri.joinPath(base, folderName);
+      try {
+        await vscode.workspace.fs.createDirectory(target);
+      } catch {}
+
+      // Write minimal .vscode/claudesync.json with current defaults
+      const vsUri = vscode.Uri.joinPath(target, '.vscode');
+      try {
+        await vscode.workspace.fs.createDirectory(vsUri);
+      } catch {}
+
+      const configPath = vscode.Uri.joinPath(vsUri, 'claudesync.json');
+      const minimal = {
+        organizationId: org.id,
+        projectId: project.id,
+        excludePatterns: cfg.excludePatterns || [],
+        maxFileSize: cfg.maxFileSize,
+        autoSync: false,
+        autoSyncDelay: cfg.autoSyncDelay,
+        syncOnStartup: false,
+        cleanupRemoteFiles: cfg.cleanupRemoteFiles,
+      };
+      await vscode.workspace.fs.writeFile(
+        configPath,
+        Buffer.from(JSON.stringify(minimal, null, 2), 'utf8'),
+      );
+
+      const open = await vscode.window.showInformationMessage(
+        `Project '${project.name}' is ready at ${target.fsPath}. Open and pull now?`,
+        'Open Folder',
+        'Later',
+      );
+      if (open === 'Open Folder') {
+        await vscode.commands.executeCommand('vscode.openFolder', target, true);
+      }
+    },
+  );
+
   // Sync (Two-Way)
   const syncTwoWayCommand = vscode.commands.registerCommand(
     'claudesync.syncTwoWay',
@@ -1256,6 +1360,7 @@ export async function activate(context: vscode.ExtensionContext) {
     syncProjectFromViewCommand,
     discoverProjectsCommand,
     syncAllProjectsCommand,
+    cloneProjectCommand,
     syncTwoWayCommand,
     syncPushCommand,
     syncPullCommand,

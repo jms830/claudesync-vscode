@@ -139,6 +139,10 @@
       {
         "command": "claudesync.syncAllProjects",
         "title": "ClaudeSync: Sync Workspace To Multiple Projects"
+      },
+      {
+        "command": "claudesync.cloneProject",
+        "title": "ClaudeSync: Clone Remote Project"
       }
     ],
     "views": {
