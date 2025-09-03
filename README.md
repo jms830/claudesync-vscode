@@ -73,6 +73,7 @@ Access these commands through the Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+
 | `ClaudeSync: Sync (Two-Way)`                | Two-way sync (current behavior)               |
 | `ClaudeSync: Push (Upload Only)`           | Upload-only sync (same as current behavior)   |
 | `ClaudeSync: Pull (Download Only)`         | Download remote files to local (preview first) |
+| `ClaudeSync: Sync Workspace To Multiple Projects` | Sync current workspace to selected Claude projects |
 | `ClaudeSync: Configure Auto-sync`           | Manage automatic file syncing                 |
 | `ClaudeSync: Configure Startup Sync`        | Control syncing on VS Code startup            |
 | `ClaudeSync: Sync Project Instructions`     | Update project instructions                   |

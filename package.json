@@ -135,6 +135,10 @@
       {
         "command": "claudesync.syncProjectFromView",
         "title": "ClaudeSync: Sync Project"
+      },
+      {
+        "command": "claudesync.syncAllProjects",
+        "title": "ClaudeSync: Sync Workspace To Multiple Projects"
       }
     ],
     "views": {
