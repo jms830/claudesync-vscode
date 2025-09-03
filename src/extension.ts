@@ -302,9 +302,55 @@ export async function activate(context: vscode.ExtensionContext) {
   const syncPullCommand = vscode.commands.registerCommand(
     'claudesync.syncPull',
     async () => {
-      vscode.window.showInformationMessage(
-        'ClaudeSync: Pull (download-only) is coming soon in a follow-up update.',
+      const action = await vscode.window.showQuickPick(
+        ['Pull now', 'Preview pull plan'],
+        { placeHolder: 'ClaudeSync: Pull (Download Only)' },
       );
+      if (!action) return;
+      if (action === 'Preview pull plan') {
+        try {
+          const plan = await syncManager.planPull();
+          outputChannel.show(true);
+          if ('error' in plan) {
+            outputChannel.appendLine(`Preview failed: ${plan.error}`);
+            vscode.window.showErrorMessage(`Preview failed: ${plan.error}`);
+            return;
+          }
+          outputChannel.appendLine('ClaudeSync — Pull Preview');
+          outputChannel.appendLine(`Remote files: ${plan.totalRemote}`);
+          outputChannel.appendLine(
+            `Create local: ${plan.createLocal.length} — ${plan.createLocal
+              .slice(0, 10)
+              .join(', ')}`,
+          );
+          outputChannel.appendLine(
+            `Overwrite local: ${plan.overwriteLocal.length} — ${plan.overwriteLocal
+              .slice(0, 10)
+              .join(', ')}`,
+          );
+          outputChannel.appendLine(
+            `Skip (identical): ${plan.skipLocal.length} — ${plan.skipLocal
+              .slice(0, 10)
+              .join(', ')}`,
+          );
+          vscode.window.showInformationMessage(
+            'Pull preview complete — see ClaudeSync output.',
+          );
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          vscode.window.showErrorMessage(`Preview failed: ${msg}`);
+        }
+        return;
+      }
+      const result = await syncManager.pullRemoteToLocal();
+      if (result.success) {
+        vscode.window.showInformationMessage(result.message || 'Pull complete');
+      } else {
+        const errorMsg = result.error
+          ? `${result.message || 'Error'}: ${result.error.message}`
+          : result.message || 'Unknown error';
+        vscode.window.showErrorMessage(errorMsg);
+      }
     },
   );
 
