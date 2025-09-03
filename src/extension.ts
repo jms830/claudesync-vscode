@@ -203,6 +203,29 @@ export async function activate(context: vscode.ExtensionContext) {
     },
   );
 
+  const syncProjectFromViewCommand = vscode.commands.registerCommand(
+    'claudesync.syncProjectFromView',
+    async (
+      org: { id: string; name: string },
+      project: { id: string; name: string },
+    ) => {
+      const ws = vscode.workspace.workspaceFolders?.[0];
+      if (!ws) {
+        vscode.window.showErrorMessage('No workspace folder found');
+        return;
+      }
+      await configManager.saveWorkspaceConfig({
+        organizationId: org.id,
+        projectId: project.id,
+      });
+      await updateSyncManager();
+      vscode.window.showInformationMessage(
+        `Syncing '${project.name}' in '${org.name}'...`,
+      );
+      await vscode.commands.executeCommand('claudesync.syncWorkspace');
+    },
+  );
+
   // Discover Projects: find subfolders containing .vscode/claudesync.json
   const discoverProjectsCommand = vscode.commands.registerCommand(
     'claudesync.discoverProjects',
@@ -1133,6 +1156,7 @@ export async function activate(context: vscode.ExtensionContext) {
     selectOrganizationCommand,
     selectProjectCommand,
     openProjectInBrowserCommand2,
+    syncProjectFromViewCommand,
     discoverProjectsCommand,
     syncTwoWayCommand,
     syncPushCommand,

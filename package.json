@@ -131,6 +131,10 @@
       {
         "command": "claudesync.openProjectInBrowser",
         "title": "ClaudeSync: Open Project in Browser"
+      },
+      {
+        "command": "claudesync.syncProjectFromView",
+        "title": "ClaudeSync: Sync Project"
       }
     ],
     "views": {
@@ -207,6 +211,11 @@
           "command": "claudesync.openProjectInBrowser",
           "when": "viewItem == claudesync.project",
           "group": "inline@2"
+        },
+        {
+          "command": "claudesync.syncProjectFromView",
+          "when": "viewItem == claudesync.project",
+          "group": "inline@3"
         },
         {
           "command": "claudesync.refreshProjects",
